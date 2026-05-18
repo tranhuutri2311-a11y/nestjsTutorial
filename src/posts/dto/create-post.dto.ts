@@ -1,13 +1,11 @@
 import {
   IsString,
   IsOptional,
-  IsEnum,
   IsBoolean,
   MaxLength,
   MinLength,
   IsUrl,
 } from 'class-validator';
-import { PostStatus } from '../entities/post.entity';
 
 export class CreatePostDto {
   @IsString()

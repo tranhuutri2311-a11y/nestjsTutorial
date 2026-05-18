@@ -5,14 +5,12 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { jwtModuleOptions } from '../auth/jwt.config';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, RefreshToken]),
-    JwtModule.register({
-      secret: 'abc123',
-      signOptions: { expiresIn: '1h' },
-    }),
+    JwtModule.register(jwtModuleOptions),
   ],
   controllers: [UsersController],
   providers: [UsersService],

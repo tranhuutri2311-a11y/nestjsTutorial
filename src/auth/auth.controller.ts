@@ -4,36 +4,35 @@ import { UsersService } from '../users/users.service';
 import { LocalGuard } from './guards/local.guard';
 import { RefreshTokenDto } from '../users/dto';
 import type { Request } from 'express';
-import { jwtGuard } from './guards/jwt.guard';
+import { JwtAuthGuard } from './guards';
 
 @Controller('auth')
 export class AuthController {
+  constructor(
+    private authService: AuthService,
+    private usersService: UsersService,
+  ) {}
 
-    constructor(
-        private authService: AuthService,
-        private usersService: UsersService,
-    ) {}
+  @Post('login')
+  @UseGuards(LocalGuard)
+  async login(@Req() req: Request) {
+    const user = req.user as { id: string; username: string };
+    return this.usersService.createRefreshToken(user.id);
+  }
 
-    @Post('login')
-    @UseGuards(LocalGuard)
-    async login(@Req() req: Request) {
-        const user = req.user as { id: string; username: string };
-        return this.usersService.createRefreshToken(user.id);
+  @Post('refresh')
+  async refresh(@Body() body: RefreshTokenDto) {
+    const tokens = await this.usersService.refreshTokens(body.refreshToken);
+    if (!tokens) {
+      return { message: 'Invalid or expired refresh token' };
     }
+    return tokens;
+  }
 
-    @Post('refresh')
-    async refresh(@Body() body: RefreshTokenDto) {
-        const tokens = await this.usersService.refreshTokens(body.refreshToken);
-        if (!tokens) {
-            return { message: 'Invalid or expired refresh token' };
-        }
-        return tokens;
-    }
-
-    @Post('logout')
-    @UseGuards(jwtGuard)
-    async logout(@Body() body: RefreshTokenDto) {
-        await this.usersService.revokeRefreshToken(body.refreshToken);
-        return { message: 'Logged out successfully' };
-    }
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  async logout(@Body() body: RefreshTokenDto) {
+    await this.usersService.revokeRefreshToken(body.refreshToken);
+    return { message: 'Logged out successfully' };
+  }
 }

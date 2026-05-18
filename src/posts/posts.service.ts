@@ -1,17 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Post, PostStatus } from './entities/post.entity';
-import { User } from '../users/entities/user.entity';
 import { UpdatePostDto } from './dto/update-post.dto';
+import { UserRole } from '../auth/enums';
+import { AuthenticatedUser } from '../auth/interfaces';
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postRepository: Repository<Post>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
   ) {}
 
   async create(createPostDto: CreatePostDto, authorId: string) {
@@ -34,20 +37,33 @@ export class PostsService {
   async findAll(authorId: string) {
     return this.postRepository.find({ where: { authorId } });
   }
-  async update(id: string, updatePostDto: UpdatePostDto): Promise<Post> {
+  async update(
+    id: string,
+    updatePostDto: UpdatePostDto,
+    user: AuthenticatedUser,
+  ): Promise<Post> {
     const post = await this.postRepository.findOne({ where: { id } });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+    this.assertCanManagePost(user, post);
 
     Object.assign(post, updatePostDto);
     return this.postRepository.save(post);
   }
-  async deletePost(id: string): Promise<void> {
+  async deletePost(id: string, user: AuthenticatedUser): Promise<void> {
     const post = await this.postRepository.findOne({ where: { id } });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+    this.assertCanManagePost(user, post);
     await this.postRepository.delete(id);
+  }
+
+  private assertCanManagePost(user: AuthenticatedUser, post: Post): void {
+    if (user.role === UserRole.ADMIN || post.authorId === user.sub) {
+      return;
+    }
+    throw new ForbiddenException('You can only manage your own posts');
   }
 }

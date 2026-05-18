@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { RefreshToken } from './refresh-token.entity';
 import type { Post } from '../../posts/entities/post.entity';
+import { Permission, UserRole } from '../../auth/enums';
 
 @Entity('users')
 export class User {
@@ -26,8 +27,25 @@ export class User {
   @Column({ default: false })
   isActive: boolean;
 
-  @Column({ default: 'user' })
-  role: string;
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.USER,
+  })
+  role: UserRole;
+
+  @Column({
+    type: 'enum',
+    enum: Permission,
+    array: true,
+    default: [
+      Permission.CREATE_POST,
+      Permission.READ_POST,
+      Permission.UPDATE_POST,
+      Permission.DELETE_POST,
+    ],
+  })
+  permissions: Permission[];
 
   @CreateDateColumn()
   createdAt: Date;

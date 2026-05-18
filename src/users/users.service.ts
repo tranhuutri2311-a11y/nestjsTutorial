@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
@@ -10,6 +11,8 @@ import { User } from './entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import * as crypto from 'crypto';
+import { Permission, UserRole } from '../auth/enums';
+import { AuthenticatedUser, JwtPayload } from '../auth/interfaces';
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -24,7 +27,7 @@ export class UsersService {
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
-    const existingUser = await this.userRepository.findOne({
+    const existingUser = await this.userRepository.findOne({  
       where: [
         { username: createUserDto.username },
         { email: createUserDto.email },
@@ -33,19 +36,30 @@ export class UsersService {
     if (existingUser) {
       throw new ConflictException('Username or email already exists');
     }
-    const user = this.userRepository.create(createUserDto);
+    const user = this.userRepository.create({
+      ...createUserDto,
+      role: UserRole.USER,
+      permissions: this.getDefaultPermissionsForRole(UserRole.USER),
+    });
     return this.userRepository.save(user);
   }
 
   async findAll(): Promise<Omit<User, 'password'>[]> {
     const users = await this.userRepository.find();
-    return users.map(({ password, ...rest }) => rest);
+    return users.map((user) => {
+      const sanitizedUser: Partial<User> = { ...user };
+      delete sanitizedUser.password;
+      return sanitizedUser as Omit<User, 'password'>;
+    });
   }
 
-  async findOne(id: string): Promise<User> {
+  async findOne(id: string, actor?: AuthenticatedUser): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+    if (actor) {
+      this.assertCanAccessUser(actor, id);
     }
     return user;
   }
@@ -54,19 +68,35 @@ export class UsersService {
     return this.userRepository.findOne({ where: { username } });
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(
+    id: string,
+    updateUserDto: UpdateUserDto,
+    actor?: AuthenticatedUser,
+  ): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+    if (actor) {
+      this.assertCanAccessUser(actor, id);
+      this.assertCanUpdateAuthorization(actor, updateUserDto);
+    }
+    if (updateUserDto.role && !updateUserDto.permissions) {
+      updateUserDto.permissions = this.getDefaultPermissionsForRole(
+        updateUserDto.role,
+      );
     }
     Object.assign(user, updateUserDto);
     return this.userRepository.save(user);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor?: AuthenticatedUser): Promise<void> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+    if (actor) {
+      this.assertCanAccessUser(actor, id);
     }
     await this.refreshTokenRepository.delete({ userId: id });
     await this.userRepository.remove(user);
@@ -76,7 +106,7 @@ export class UsersService {
     userId: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const user = await this.findOne(userId);
-    const payload = { sub: user.id, username: user.username };
+    const payload = this.buildJwtPayload(user);
 
     const accessToken = this.jwtService.sign(payload);
 
@@ -122,7 +152,8 @@ export class UsersService {
 
     await this.refreshTokenRepository.delete(tokenDoc.id);
 
-    const payload = { sub: tokenDoc.userId };
+    const user = await this.findOne(tokenDoc.userId);
+    const payload = this.buildJwtPayload(user);
     const newAccessToken = this.jwtService.sign(payload);
 
     const newRefreshToken = crypto.randomBytes(64).toString('hex');
@@ -150,5 +181,53 @@ export class UsersService {
       { isRevoked: true },
     );
     return result.affected ?? 0;
+  }
+
+  private buildJwtPayload(user: User): JwtPayload {
+    return {
+      sub: user.id,
+      username: user.username,
+      role: user.role,
+      permissions: user.permissions,
+    };
+  }
+
+  private getDefaultPermissionsForRole(role: UserRole): Permission[] {
+    if (role === UserRole.ADMIN) {
+      return Object.values(Permission);
+    }
+    return [
+      Permission.CREATE_POST,
+      Permission.READ_POST,
+      Permission.UPDATE_POST,
+      Permission.DELETE_POST,
+    ];
+  }
+
+  private assertCanAccessUser(
+    actor: AuthenticatedUser,
+    targetId: string,
+  ): void {
+    const canManageUsers =
+      actor.role === UserRole.ADMIN ||
+      actor.permissions?.includes(Permission.MANAGE_USERS);
+    if (canManageUsers || actor.sub === targetId) {
+      return;
+    }
+    throw new ForbiddenException('You can only access your own user record');
+  }
+
+  private assertCanUpdateAuthorization(
+    actor: AuthenticatedUser,
+    updateUserDto: UpdateUserDto,
+  ): void {
+    const isAuthorizationUpdate =
+      updateUserDto.role !== undefined ||
+      updateUserDto.permissions !== undefined;
+    if (!isAuthorizationUpdate || actor.role === UserRole.ADMIN) {
+      return;
+    }
+
+    throw new ForbiddenException('Only admins can update authorization claims');
   }
 }

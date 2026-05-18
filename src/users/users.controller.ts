@@ -6,53 +6,63 @@ import {
   Delete,
   Body,
   Param,
+  Request,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, RefreshTokenDto } from './dto';
-import { jwtGuard } from '../auth/guards/jwt.guard';
-import { IsOwnerOrAdminGuard } from '../auth/guards/is-owner-or-admin.guard';
+import { Permissions } from '../auth/decorators';
+import { Permission } from '../auth/enums';
+import { JwtAuthGuard, PermissionsGuard } from '../auth/guards';
+import { AuthenticatedUser } from '../auth/interfaces';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  // @UseGuards(jwtGuard)
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
   }
 
   @Get()
-  @UseGuards(jwtGuard)
+  @Permissions(Permission.MANAGE_USERS)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   findAll() {
     return this.usersService.findAll();
   }
 
   @Get(':id')
-  @UseGuards(jwtGuard)
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  @UseGuards(JwtAuthGuard)
+  findOne(
+    @Param('id') id: string,
+    @Request() req: { user: AuthenticatedUser },
+  ) {
+    return this.usersService.findOne(id, req.user);
   }
 
   @Put(':id')
-  @UseGuards(jwtGuard)
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(id, updateUserDto);
+  @UseGuards(JwtAuthGuard)
+  update(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+    @Request() req: { user: AuthenticatedUser },
+  ) {
+    return this.usersService.update(id, updateUserDto, req.user);
   }
 
   @Delete(':id')
-  @UseGuards(jwtGuard, IsOwnerOrAdminGuard)
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  remove(@Param('id') id: string, @Request() req: { user: AuthenticatedUser }) {
+    return this.usersService.remove(id, req.user);
   }
 
   @Post('refresh')
-  refresh(@Body() body: RefreshTokenDto) {
-    const tokens = this.usersService.refreshTokens(body.refreshToken);
+  async refresh(@Body() body: RefreshTokenDto) {
+    const tokens = await this.usersService.refreshTokens(body.refreshToken);
     if (!tokens) {
       return { message: 'Invalid or expired refresh token' };
     }
@@ -60,9 +70,9 @@ export class UsersController {
   }
 
   @Post('logout')
-  @UseGuards(jwtGuard)
-  logout(@Body() body: RefreshTokenDto) {
-    this.usersService.revokeRefreshToken(body.refreshToken);
+  @UseGuards(JwtAuthGuard)
+  async logout(@Body() body: RefreshTokenDto) {
+    await this.usersService.revokeRefreshToken(body.refreshToken);
     return { message: 'Logged out successfully' };
   }
 }

@@ -1,4 +1,15 @@
-import { IsString, MinLength, MaxLength, IsOptional, IsEmail, IsBoolean, IsEnum } from 'class-validator';
+import {
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import { Permission, UserRole } from '../../auth/enums';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -22,6 +33,12 @@ export class UpdateUserDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsEnum(['user', 'admin'])
-  role?: string;
+  @IsEnum(UserRole)
+  role?: UserRole;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(Permission, { each: true })
+  permissions?: Permission[];
 }

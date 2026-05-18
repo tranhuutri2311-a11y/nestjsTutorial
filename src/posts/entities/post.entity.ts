@@ -31,7 +31,6 @@ export class Post {
   })
   content: string;
 
-
   @Column({
     type: 'text',
     nullable: true,
@@ -43,7 +42,6 @@ export class Post {
     nullable: true,
   })
   thumbnail?: string;
-
 
   @Column({
     type: 'boolean',

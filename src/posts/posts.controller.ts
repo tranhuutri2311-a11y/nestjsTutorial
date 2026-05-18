@@ -12,44 +12,55 @@ import {
 import { PostsService } from './posts.service';
 import { Body, Request } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
-import { jwtGuard } from 'src/auth/guards/jwt.guard';
+import { Permissions } from '../auth/decorators';
+import { Permission } from '../auth/enums';
+import { JwtAuthGuard, PermissionsGuard } from '../auth/guards';
+import { AuthenticatedUser } from '../auth/interfaces';
 import { UpdatePostDto } from './dto/update-post.dto';
-import {
-  IsPostOwnerGuard,
-  IsPostOwnerOrAdminGuard,
-} from './guards/is-post-owner.guard';
 
 @Controller('posts')
 export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
   @Post()
-  @UseGuards(jwtGuard)
-  create(@Body() createPostDto: CreatePostDto, @Request() req: any) {
+  @Permissions(Permission.CREATE_POST)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  create(
+    @Body() createPostDto: CreatePostDto,
+    @Request() req: { user: AuthenticatedUser },
+  ) {
     return this.postsService.create(createPostDto, req.user.sub);
   }
 
   @Get('getall/:id')
-  @UseGuards(jwtGuard)
+  @Permissions(Permission.READ_POST)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   findAll(@Param('id') id: string) {
     return this.postsService.findAll(id);
   }
 
   @Get(':id')
-  @UseGuards(jwtGuard)
+  @Permissions(Permission.READ_POST)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   findOne(@Param('id') id: string) {
     return this.postsService.findOne(id);
   }
 
   @Patch(':id')
-  @UseGuards(jwtGuard, IsPostOwnerGuard)
-  update(@Param('id') id: string, @Body() updatePostDto: UpdatePostDto) {
-    return this.postsService.update(id, updatePostDto);
+  @Permissions(Permission.UPDATE_POST)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  update(
+    @Param('id') id: string,
+    @Body() updatePostDto: UpdatePostDto,
+    @Request() req: { user: AuthenticatedUser },
+  ) {
+    return this.postsService.update(id, updatePostDto, req.user);
   }
   @Delete(':id')
-  @UseGuards(jwtGuard, IsPostOwnerOrAdminGuard)
+  @Permissions(Permission.DELETE_POST)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string) {
-    return this.postsService.deletePost(id);
+  remove(@Param('id') id: string, @Request() req: { user: AuthenticatedUser }) {
+    return this.postsService.deletePost(id, req.user);
   }
 }
