@@ -69,10 +69,4 @@ export class UsersController {
     return tokens;
   }
 
-  @Post('logout')
-  @UseGuards(JwtAuthGuard)
-  async logout(@Body() body: RefreshTokenDto) {
-    await this.usersService.revokeRefreshToken(body.refreshToken);
-    return { message: 'Logged out successfully' };
-  }
 }
