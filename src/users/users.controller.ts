@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, RefreshTokenDto } from './dto';
 import { Permissions } from '../auth/decorators';
@@ -18,6 +19,8 @@ import { Permission } from '../auth/enums';
 import { JwtAuthGuard, PermissionsGuard } from '../auth/guards';
 import { AuthenticatedUser } from '../auth/interfaces';
 
+@ApiTags('users')
+@ApiBearerAuth()
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -68,5 +71,4 @@ export class UsersController {
     }
     return tokens;
   }
-
 }

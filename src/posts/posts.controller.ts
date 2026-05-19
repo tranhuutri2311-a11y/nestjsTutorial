@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PostsService } from './posts.service';
 import { Body, Request } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -18,6 +19,8 @@ import { JwtAuthGuard, PermissionsGuard } from '../auth/guards';
 import { AuthenticatedUser } from '../auth/interfaces';
 import { UpdatePostDto } from './dto/update-post.dto';
 
+@ApiTags('posts')
+@ApiBearerAuth()
 @Controller('posts')
 export class PostsController {
   constructor(private readonly postsService: PostsService) {}

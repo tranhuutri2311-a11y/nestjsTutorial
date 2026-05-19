@@ -1,11 +1,14 @@
 import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { LocalGuard } from './guards/local.guard';
 import { RefreshTokenDto } from '../users/dto';
 import type { Request } from 'express';
 import { JwtAuthGuard } from './guards';
+import { AuthPayloadDto } from './dto/auth.dto';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -14,6 +17,7 @@ export class AuthController {
   ) {}
 
   @Post('login')
+  @ApiBody({ type: AuthPayloadDto })
   @UseGuards(LocalGuard)
   async login(@Req() req: Request) {
     const user = req.user as { id: string; username: string };
@@ -30,6 +34,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   async logout(@Body() body: RefreshTokenDto) {
     await this.usersService.revokeRefreshToken(body.refreshToken);
