@@ -35,11 +35,11 @@ export class PostsController {
     return this.postsService.create(createPostDto, req.user.sub);
   }
 
-  @Get('getall/:id')
+  @Get('getall/:userId')
   @Permissions(Permission.READ_POST)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  findAll(@Param('id') id: string) {
-    return this.postsService.findAll(id);
+  findAll(@Param('userId') userId: string) {
+    return this.postsService.findAll(userId);
   }
 
   @Get(':id')
